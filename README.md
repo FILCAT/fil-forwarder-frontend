@@ -1,4 +1,4 @@
-The frontend for the Fil Forwarder.
+This is the frontend for the Fil Forwarder.
 
 ## Available Scripts
 
