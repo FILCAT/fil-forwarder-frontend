@@ -8,9 +8,10 @@ import {
 } from '@chakra-ui/react';
 import { ColorModeSwitcher } from './ColorModeSwitcher';
 import { FIL } from './icon/FIL.js';
+import { ConnectKitButton } from 'connectkit';
 
 const NavLink = ({label, href}) => ( 
-  <Link px={2} py={1} rounded={'md'}
+  <Link px={2} py={2} rounded={'md'}
     _hover={{
       textDecoration: 'none',
       bg: useColorModeValue('gray.200', 'gray.700'),
@@ -31,6 +32,7 @@ export function Nav() {
       <Flex alignItems={'center'}>
         <Stack direction={'row'} spacing={7}>
           <NavLink label='Documentation' href='https://spec.filecoin.io/appendix/address/'/>
+          <ConnectKitButton/> 
           <ColorModeSwitcher/>
         </Stack>
       </Flex>
