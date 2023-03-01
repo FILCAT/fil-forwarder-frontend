@@ -6,19 +6,23 @@ import {
   Box,
   ChakraProvider,
   FormControl,
+  FormErrorMessage,
   FormLabel,
-  Select,
   Heading,
+  HStack,
   Input,
   InputGroup,
   InputRightElement,
+  Link,
   NumberInput,
   NumberInputField,
-  Text,
+  Select,
   Spinner,
+  Text,
   theme,
   VStack,
   useColorModeValue,
+  useToast
 } from '@chakra-ui/react';
 import { useState } from 'react';
 
@@ -26,6 +30,7 @@ import { useState } from 'react';
 // Icons
 //////////////////////////////////////
 import { AiOutlineLink } from 'react-icons/ai';
+import { FiSend, FiExternalLink } from 'react-icons/fi';
 
 //////////////////////////////////////
 // FIL Forwarder React Components
@@ -35,10 +40,10 @@ import { Nav } from './Nav.js';
 //////////////////////////////////////
 // Filecoin Specific Tools
 //////////////////////////////////////
-// import { Address } from '@zondax/izari-tools';
+import { Address } from '@zondax/izari-tools';
 
 //////////////////////////////////////
-// Wallet, Network, Contracts
+// Wallet, Network, Contract Hooks
 //////////////////////////////////////
 import { ethers, BigNumber } from 'ethers';
 import { 
@@ -55,6 +60,7 @@ import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet'
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask'
 import { WalletConnectConnector } from 'wagmi/connectors/walletConnect'
 import { ConnectKitProvider, ConnectKitButton } from 'connectkit';
+import { useForward } from './hooks/FilForwarderHooks.js';
 
 //////////////////////////////////////
 // Wallet Configuration
@@ -70,7 +76,7 @@ const hyperspace = {
   },
   rpcUrls: {
     default: "https://api.hyperspace.node.glif.io/rpc/v1"
-  }
+  },
 }
 
 const calibration = {
@@ -149,22 +155,78 @@ export function SendFilForm() {
   });
 
   // state
+  const toast = useToast();
   const [sendAmount, setSendAmount] = useState(0);
   const [destination, setDestination] = useState('');
+  const [transactionHash, setTransactionHash] = useState(null);
 
   // errors
   const hasSendAmountError = !balance.isSuccess || BigNumber.from(0).eq(sendAmount) || 
     balance.data.value.lt(sendAmount);
-  const hasDestinationError = false;
+
+  // address formation
+  var parsedAddress = [];
+  var hasDestinationError = false;
+  var destinationErrorMessage = '';
+  try {
+    parsedAddress = Address.fromString(destination).toBytes();
+  } catch (error) {
+    destinationErrorMessage = error.message;
+    hasDestinationError = true; 
+  }
 
   // writes
   const switcher = useSwitchNetwork();
+  const forward  = useForward([...parsedAddress], sendAmount, !hasSendAmountError && !hasDestinationError,
+    function(error) {
+        toast({
+          title: 'Transaction Error!',
+          description: error.toString(),
+          status: 'error',
+          duration: 5000,
+          isClosable: true
+        });
+      },
+      function(data) {
+        setTransactionHash(data.hash);
+        toast({
+          title: 'FIL has been forwarded!',
+          description: 'Transaction hash: ' + data.hash,
+          status: 'success',
+          duration: 5000,
+          isClosable: true
+        });
+      }
+  );
 
   // for simplicity sake, lets make sure we have everything we need
   if (!network.chain || !balance.isSuccess) {
     return account.isConnected ? <Spinner size='xl'/> : '';
   }
 
+  // formulate the link
+  const getExplorerLink = function(hash) {
+    if (network.chain.id === hyperspace.id) {
+      return "https://hyperspace.filfox.info/en/message/" + hash;
+    } else if (network.chain.id === calibration.id) {
+      return "https://calibration.filfox.info/en/message/" + hash;
+    } else {
+      return "https://filfox.info/en/message" + hash;
+    }
+  }
+
+  // if we've sent something, let's provide the hash and some links to explorers.
+  if (transactionHash !== null) {
+    return <VStack>
+      <Heading>Success!</Heading>
+      <Text>{transactionHash}</Text>
+      <Link color='blue' href={getExplorerLink(transactionHash)} isExternal>
+        <HStack><Text>View on FilFox</Text><FiExternalLink/></HStack>
+      </Link>
+    </VStack>
+  }
+
+  // otherwise, show them the form to fill out to send FIL
   return <VStack spacing='2em' pt='3em'>
     <FormControl>
       <FormLabel>Network</FormLabel>
@@ -194,13 +256,23 @@ export function SendFilForm() {
         <Text color='gray'>{balance.data.symbol}</Text>
       </InputRightElement>
       </InputGroup>
+      { hasSendAmountError && 
+        <FormErrorMessage>The amount must be greater than zero, and less than your balance.</FormErrorMessage> }
     </FormControl>
     <FormControl isInvalid={hasDestinationError}>
       <FormLabel>Desintation Address</FormLabel>
       <Input placeholder="t01024"
         _placeholder={{ color: 'gray.500' }}
         onChange={(e) => {setDestination(e.target.value);}}/>
+      { hasDestinationError &&
+        <FormErrorMessage>{ destinationErrorMessage }</FormErrorMessage> }
     </FormControl>
+    <Button 
+      isDisabled={ hasSendAmountError || hasDestinationError } 
+      isLoading={forward.isLoading} 
+      size='lg' colorScheme='blue' leftIcon={<FiSend/>}
+      onClick={() => { forward.write?.(); }} 
+    >Send FIL Now</Button>
   </VStack>
 }
 
