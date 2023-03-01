@@ -4,6 +4,10 @@ import * as ReactDOM from 'react-dom/client';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import * as serviceWorker from './serviceWorker';
+import { Buffer } from "buffer";
+
+// If we don't have a value for Buffer (node core module) create it/polyfill it
+if (window.Buffer === undefined) window.Buffer = Buffer;
 
 const container = document.getElementById('root');
 const root = ReactDOM.createRoot(container);
